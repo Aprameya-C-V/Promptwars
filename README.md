@@ -1,13 +1,15 @@
 # Hesychia
 
-Hesychia is a production-oriented PromptWars project for students preparing for high-stakes exams. It combines:
+Hesychia is an AI wellness companion for students preparing for high-stakes exams. It combines:
 
 - open-ended journaling,
 - structured AI mood analysis,
 - contextual companion chat,
 - adaptive coping exercises,
 - local-first trend tracking,
-- Gemini Live voice sessions through ephemeral tokens.
+- contextual Gemini text chat,
+- low-latency Gemini Live voice with transcription and interruption handling,
+- adaptive exercises with a usable timer.
 
 The product name comes from the Greek idea of stillness and quietness of mind.
 
@@ -23,9 +25,10 @@ The product name comes from the Greek idea of stillness and quietness of mind.
 
 ## Architecture
 
-- Frontend owns interaction, local state, and rendering.
-- Backend owns Gemini access, safety, schemas, and prompt orchestration.
-- Voice sessions use Gemini Live ephemeral tokens minted by the backend.
+- Frontend owns interaction, local-first history, responsive rendering, microphone capture, and audio playback.
+- Backend owns Gemini access, safety screening, validation, CORS, secure error handling, and prompt orchestration.
+- Voice sessions use single-use Gemini Live ephemeral tokens minted by the backend. The browser never receives the long-lived API key.
+- Direct crisis language pauses normal chat or voice coaching and directs the student toward immediate human support.
 
 ## Gemini integration
 
@@ -61,14 +64,20 @@ Create local env files:
 Run locally:
 
 ```bash
+npm run dev
+```
+
+The command above starts the frontend. For full AI functionality, run the backend in a second terminal:
+
+```bash
 npm run dev:backend
-npm run dev:frontend
 ```
 
 Validate:
 
 ```bash
 npm run build
+npm run lint
 npm test
 ```
 
@@ -78,3 +87,6 @@ npm test
 - Live voice auth must use ephemeral tokens only.
 - Journal and companion safety checks run before normal AI response generation.
 - The frontend is designed to deploy as a separate Vercel project from the backend.
+- Set frontend `NEXT_PUBLIC_API_BASE_URL` to the backend deployment URL.
+- Set backend `ALLOWED_ORIGIN` to the exact frontend URL. Multiple origins may be comma-separated.
+- CI runs type checks, 16+ behavior tests, and production builds on pushes and pull requests.

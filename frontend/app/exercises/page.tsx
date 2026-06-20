@@ -1,124 +1,185 @@
-import { AppChrome } from "@/components/AppChrome";
-import { ExerciseIcon, PlayIcon, TimerIcon } from "@/components/icons";
+"use client";
 
-const steps = [
-  {
-    title: "Exhale completely",
-    body: "Release all the air from your lungs through your mouth. Empty your chest entirely and let the shoulders drop."
-  },
-  {
-    title: "Inhale (4 seconds)",
-    body: "Breathe in slowly through your nose. Let the breath fill low in the body before it rises into the chest."
-  },
-  {
-    title: "Hold (4 seconds)",
-    body: "Stay soft at the top of the inhale. The goal is steadiness, not force."
-  },
-  {
-    title: "Exhale and hold (4 seconds each)",
-    body: "Exhale over 4 seconds, then hold the empty state for another 4. Repeat for the full cycle."
-  }
-];
+import { useEffect, useMemo, useState } from "react";
+import { AppChrome } from "@/components/AppChrome";
+import { ExerciseIcon, PlayIcon, SparkIcon, TimerIcon } from "@/components/icons";
+import { ApiError, generateExercise } from "@/lib/api";
+import { storage } from "@/lib/storage";
+import type { CopingExercise, JournalAnalysis } from "@/lib/types";
+
+const defaultExercise: CopingExercise = {
+  id: "box-breathing",
+  title: "Box Breathing",
+  goal: "Lower immediate physiological urgency before returning to study.",
+  durationMinutes: 4,
+  steps: [
+    "Exhale fully and let your shoulders drop.",
+    "Inhale gently through your nose for four seconds.",
+    "Hold for four seconds without straining.",
+    "Exhale for four seconds, pause for four, and repeat."
+  ],
+  whyThisHelps:
+    "A slower, predictable breathing rhythm can reduce the felt urgency that makes focused work harder."
+};
+
+const neutralAnalysis: JournalAnalysis = {
+  moodScore: 5,
+  energyLevel: "medium",
+  primaryEmotion: "stressed",
+  stressTriggers: ["exam preparation"],
+  hiddenPattern: null,
+  urgency: "medium",
+  supportiveSummary: "Keep the next step small and concrete."
+};
 
 export default function ExercisesPage() {
+  const [exercise, setExercise] = useState<CopingExercise>(defaultExercise);
+  const [analysis, setAnalysis] = useState<JournalAnalysis>(neutralAnalysis);
+  const [secondsLeft, setSecondsLeft] = useState(defaultExercise.durationMinutes * 60);
+  const [running, setRunning] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const latestExercise = storage.loadLatestExercise();
+    const latestEntry = storage.loadJournalEntries()[0];
+    if (latestExercise) setExercise(latestExercise);
+    if (latestEntry) setAnalysis(latestEntry.analysis);
+  }, []);
+
+  useEffect(() => {
+    setSecondsLeft(exercise.durationMinutes * 60);
+    setRunning(false);
+  }, [exercise]);
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => {
+      setSecondsLeft((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          setRunning(false);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+
+  const timeLabel = useMemo(() => {
+    const minutes = Math.floor(secondsLeft / 60);
+    const seconds = secondsLeft % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }, [secondsLeft]);
+
+  async function personalizeExercise() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const result = await generateExercise({
+        currentAnalysis: analysis,
+        userRequest: "Give me the most useful short exercise I can do before my next study block."
+      });
+      setExercise(result.exercise);
+      storage.saveLatestExercise(result.exercise);
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "A personalized exercise could not be generated."
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function resetTimer() {
+    setRunning(false);
+    setSecondsLeft(exercise.durationMinutes * 60);
+  }
+
+  function toggleTimer() {
+    if (secondsLeft === 0) {
+      setSecondsLeft(exercise.durationMinutes * 60);
+      setRunning(true);
+      return;
+    }
+    setRunning((value) => !value);
+  }
+
   return (
     <AppChrome>
-      <div style={{ display: "grid", gap: 28, maxWidth: 940, margin: "0 auto" }}>
-        <header style={{ textAlign: "center", paddingTop: 20 }}>
-          <div className="eyebrow" style={{ color: "var(--accent-warning)", marginBottom: 16 }}>
-            Active training
+      <div className="exercise-page">
+        <header className="exercise-header">
+          <div>
+            <div className="eyebrow exercise-kicker">Adaptive reset</div>
+            <h1>Regain enough calm for the next step.</h1>
+            <p>
+              Use one short protocol matched to your latest check-in, then return to the smallest
+              useful study action.
+            </p>
           </div>
-          <h1 style={{ fontSize: 64, margin: "0 0 12px" }}>Mental Fortitude</h1>
-          <p style={{ color: "var(--text-secondary)", maxWidth: 620, margin: "0 auto", fontSize: 20, lineHeight: 1.7 }}>
-            Precise physiological protocols designed to recalibrate your nervous system during high-stress academic cycles.
-          </p>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => void personalizeExercise()}
+            disabled={generating}
+          >
+            <SparkIcon size={18} />
+            {generating ? "Personalizing…" : "Personalize with Gemini"}
+          </button>
         </header>
 
-        <section className="surface-card" style={{ padding: 30, boxShadow: "var(--shadow-green)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 24, alignItems: "start", flexWrap: "wrap" }}>
-            <div style={{ maxWidth: 520 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
-                <span className="pill" style={{ background: "rgba(91,228,107,0.12)", color: "var(--accent-primary-bright)" }}>
-                  Neural recovery
-                </span>
-                <span className="small-muted" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <TimerIcon size={16} /> 5 minutes
-                </span>
-              </div>
-              <h2 style={{ fontSize: 44, margin: "0 0 12px" }}>Box Breathing</h2>
-              <p style={{ color: "var(--text-secondary)", lineHeight: 1.75, fontSize: 20 }}>
-                A direct reset used to regain calm and attentional control. This exercise regulates breathing rhythm so the body stops acting like the threat is still present.
-              </p>
-              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 24 }}>
-                <button className="primary-button" type="button">
-                  <PlayIcon size={18} /> Start timer
-                </button>
-                <button className="dark-button" type="button">
-                  View research
-                </button>
-              </div>
-            </div>
+        {error ? <div className="inline-error" role="alert">{error}</div> : null}
 
-            <div
-              style={{
-                width: 120,
-                height: 120,
-                borderRadius: 28,
-                background: "rgba(91,228,107,0.07)",
-                display: "grid",
-                placeItems: "center",
-                color: "rgba(91,228,107,0.32)"
-              }}
-            >
-              <ExerciseIcon size={42} />
+        <section className="surface-card exercise-hero">
+          <div>
+            <div className="exercise-meta">
+              <span className="pill">For {analysis.primaryEmotion} moments</span>
+              <span className="small-muted">
+                <TimerIcon size={16} /> {exercise.durationMinutes} minutes
+              </span>
+            </div>
+            <h2>{exercise.title}</h2>
+            <p>{exercise.goal}</p>
+          </div>
+
+          <div className="exercise-timer" aria-live="polite">
+            <ExerciseIcon size={28} />
+            <strong>{timeLabel}</strong>
+            <span>{running ? "Stay with the rhythm" : secondsLeft === 0 ? "Complete" : "Ready"}</span>
+            <div>
+              <button className="primary-button" type="button" onClick={toggleTimer}>
+                <PlayIcon size={18} /> {running ? "Pause" : secondsLeft === 0 ? "Restart" : "Start"}
+              </button>
+              <button className="dark-button" type="button" onClick={resetTimer}>Reset</button>
             </div>
           </div>
         </section>
 
-        <section>
-          <h3 style={{ fontSize: 34, marginBottom: 18 }}>Step-by-step protocol</h3>
-          <div style={{ display: "grid", gap: 24 }}>
-            {steps.map((step, index) => (
-              <div key={step.title} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 20 }}>
-                <div style={{ display: "grid", justifyItems: "center" }}>
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid var(--border-muted)",
-                      display: "grid",
-                      placeItems: "center",
-                      color: "var(--accent-primary-bright)",
-                      fontWeight: 700,
-                      fontSize: 13
-                    }}
-                  >
-                    {index + 1}
-                  </div>
-                  {index < steps.length - 1 ? <div style={{ width: 1, flex: 1, background: "var(--border-muted)", minHeight: 54 }} /> : null}
-                </div>
-                <div>
-                  <h4 style={{ margin: "0 0 8px", fontSize: 28 }}>{step.title}</h4>
-                  <p style={{ color: "var(--text-secondary)", margin: 0, lineHeight: 1.75 }}>{step.body}</p>
-                </div>
-              </div>
+        <section className="exercise-protocol">
+          <div>
+            <div className="eyebrow section-label">Step-by-step</div>
+            <h2>Follow the protocol</h2>
+          </div>
+          <ol>
+            {exercise.steps.map((step, index) => (
+              <li key={`${step}-${index}`}>
+                <span>{index + 1}</span>
+                <p>{step}</p>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
-        <section className="surface-card" style={{ padding: 28 }}>
-          <div className="eyebrow" style={{ color: "var(--accent-warning)", marginBottom: 10 }}>
-            The neuroscience of calm
-          </div>
-          <h3 style={{ fontSize: 34, margin: "0 0 12px" }}>Scientific mechanism</h3>
-          <p style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}>
-            Box breathing helps stimulate parasympathetic recovery by slowing and stabilizing respiratory rhythm. In practice, it lowers the sense of internal urgency that makes studying feel mentally unsafe.
-          </p>
-          <p style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}>
-            For students, this is valuable because it helps reduce the “inner noise” of exam stress before it turns into avoidance, panic, or thought fragmentation.
-          </p>
+        <section className="surface-card exercise-rationale">
+          <div className="eyebrow exercise-kicker">Why this helps</div>
+          <p>{exercise.whyThisHelps}</p>
+          <small>
+            This is a general wellbeing exercise, not medical treatment. Stop if it feels
+            uncomfortable.
+          </small>
         </section>
       </div>
     </AppChrome>

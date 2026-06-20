@@ -1,55 +1,75 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { AppChrome } from "@/components/AppChrome";
 import { CompanionIcon, MicIcon, SafetyIcon, SparkIcon } from "@/components/icons";
-import { sendCompanionMessage } from "@/lib/api";
+import { ApiError, sendCompanionMessage } from "@/lib/api";
 import { storage } from "@/lib/storage";
-import type { CompanionMessage, SafetyStatus } from "@/lib/types";
+import type { CompanionMessage, JournalEntry, SafetyStatus } from "@/lib/types";
 
-const starterMessages: CompanionMessage[] = [
-  {
-    id: "companion-intro-1",
+function createWelcomeMessage(): CompanionMessage {
+  return {
+    id: crypto.randomUUID(),
     role: "assistant",
-    text: "Hello. I noticed your recent check-ins suggest elevated strain. Would you like to talk about what is weighing on you, or should we switch to a grounding exercise first?",
+    text: "I’m here. Tell me what feels heaviest about your preparation right now, and we’ll reduce it to one manageable next step.",
     createdAt: new Date().toISOString()
-  },
-  {
-    id: "companion-user-1",
-    role: "user",
-    text: "I'm really overwhelmed with the final project submission. I feel like I'm running out of time.",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "companion-intro-2",
-    role: "assistant",
-    text: "Time pressure is one of the most common triggers for academic anxiety. Let’s break the next hour down. What is the single smallest task you could complete in 15 minutes?",
-    createdAt: new Date().toISOString()
-  }
-];
+  };
+}
+
+function formatMessageTime(createdAt: string) {
+  return new Intl.DateTimeFormat("en", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  }).format(new Date(createdAt));
+}
 
 export default function CompanionPage() {
-  const [messages, setMessages] = useState<CompanionMessage[]>(starterMessages);
+  const [messages, setMessages] = useState<CompanionMessage[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showSupport, setShowSupport] = useState(false);
   const [safety, setSafety] = useState<{ status: SafetyStatus; message?: string }>({
-    status: "elevated",
-    message: "Elevated concern detected"
+    status: "ok"
   });
+  const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const stored = storage.loadCompanionMessages();
-    if (stored.length) setMessages(stored);
+    setMessages(stored.length ? stored : [createWelcomeMessage()]);
+    setJournalEntries(storage.loadJournalEntries());
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
-    storage.saveCompanionMessages(messages);
-  }, [messages]);
+    if (hydrated) storage.saveCompanionMessages(messages);
+    scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [hydrated, messages, loading]);
 
-  const quickReplies = useMemo(() => ["Outline Chapter 2", "Format citations", "I don't know"], []);
+  const quickReplies = useMemo(
+    () => ["Help me calm down", "Plan my next 30 minutes", "I feel stuck"],
+    []
+  );
 
-  async function submitMessage(messageText: string) {
-    if (!messageText.trim()) return;
+  const latestAnalysis = journalEntries[0]?.analysis;
+  const recentMood = latestAnalysis ? `${latestAnalysis.moodScore.toFixed(1)}/10` : "No check-in";
+  const trendDescription = latestAnalysis
+    ? `${latestAnalysis.primaryEmotion} · ${latestAnalysis.energyLevel} energy`
+    : "Complete a journal check-in to personalize this space.";
+
+  async function submitMessage(messageText: string, appendUser = true) {
+    if (!messageText.trim() || loading) return;
 
     const userMessage: CompanionMessage = {
       id: crypto.randomUUID(),
@@ -57,19 +77,19 @@ export default function CompanionPage() {
       text: messageText.trim(),
       createdAt: new Date().toISOString()
     };
+    const nextMessages = appendUser ? [...messages, userMessage] : messages;
 
-    const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
+    if (appendUser) setMessages(nextMessages);
     setInput("");
     setLoading(true);
+    setError(null);
 
     try {
       const result = await sendCompanionMessage({
         message: userMessage.text,
-        recentEntries: storage.loadJournalEntries().slice(0, 3),
+        recentEntries: journalEntries.slice(0, 3),
         recentMessages: nextMessages.slice(-10)
       });
-
       const reply: CompanionMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -79,138 +99,188 @@ export default function CompanionPage() {
 
       setMessages((current) => [...current, reply]);
       setSafety(result.safety);
-    } catch {
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: "I hit a network issue. Stay with the next smallest task you can finish in 10 minutes, and try again when you’re ready.",
-          createdAt: new Date().toISOString()
-        }
-      ]);
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Hesychia could not respond. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitMessage(input);
+  }
+
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void submitMessage(input);
+    }
+  }
+
+  const safetyLabel =
+    safety.status === "crisis"
+      ? "Immediate support recommended"
+      : safety.status === "elevated"
+        ? "Extra support active"
+        : "Private companion session";
+
   return (
     <AppChrome>
-      <div style={{ marginBottom: 20, padding: "14px 18px", borderRadius: 0, background: "rgba(239,193,62,0.14)", border: "1px solid rgba(239,193,62,0.25)", color: "var(--accent-warning)", display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <span className="eyebrow">{safety.status === "elevated" ? "Elevated concern detected" : "Companion active"}</span>
-        <span style={{ textDecoration: "underline" }}>Access SOS Mode</span>
+      <div
+        className={`safety-banner ${safety.status}`}
+        role={safety.status === "crisis" ? "alert" : "status"}
+      >
+        <span className="eyebrow">{safetyLabel}</span>
+        <button className="text-button" type="button" onClick={() => setShowSupport((value) => !value)} aria-expanded={showSupport}>
+          Access support options
+        </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.55fr) 320px", gap: 0, border: "1px solid var(--border-muted)", borderRadius: 28, overflow: "hidden", minHeight: "calc(100vh - 220px)" }}>
-        <section style={{ padding: 28, display: "grid", gridTemplateRows: "1fr auto", background: "rgba(19,19,19,0.92)" }}>
-          <div className="chat-scroll">
+      {showSupport ? (
+        <div className="support-panel" role="region" aria-label="Immediate support options">
+          <strong>If you may be in immediate danger, contact local emergency services now.</strong>
+          <p>
+            You can also call a trusted person and ask them to stay with you. Hesychia is not an
+            emergency service or a substitute for professional care.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="companion-layout">
+        <section className="chat-panel" aria-label="Companion conversation">
+          <div className="chat-scroll" aria-live="polite" aria-busy={loading}>
             {messages.map((message) => (
               <div
                 key={message.id}
-                style={{
-                  display: "grid",
-                  justifyItems: message.role === "user" ? "end" : "start",
-                  gap: 8
-                }}
+                className={`chat-message-row ${message.role === "user" ? "user" : "assistant"}`}
               >
-                <div className={`chat-bubble ${message.role === "user" ? "user" : "bot"}`}>{message.text}</div>
-                <span className="small-muted">
-                  {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
+                <div className={`chat-bubble ${message.role === "user" ? "user" : "bot"}`}>
+                  {message.text}
+                </div>
+                <time className="small-muted" dateTime={message.createdAt}>
+                  {formatMessageTime(message.createdAt)}
+                </time>
               </div>
             ))}
 
             {loading ? (
-              <div className="chat-bubble bot" style={{ width: "fit-content" }}>
-                Thinking through the next useful step...
+              <div className="chat-bubble bot typing-indicator">
+                <span />
+                <span />
+                <span />
+                <span className="sr-only">Hesychia is thinking</span>
               </div>
             ) : null}
+            <div ref={scrollAnchorRef} />
           </div>
 
-          <div style={{ display: "grid", gap: 12, paddingTop: 18 }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <form className="chat-composer" onSubmit={onSubmit}>
+            <div className="quick-replies" aria-label="Suggested messages">
               {quickReplies.map((reply) => (
-                <button key={reply} className="pill" type="button" onClick={() => submitMessage(reply)} style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-primary)" }}>
+                <button
+                  key={reply}
+                  className="pill quick-reply"
+                  type="button"
+                  onClick={() => void submitMessage(reply)}
+                  disabled={loading}
+                >
                   {reply}
                 </button>
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 12, alignItems: "end" }}>
+            {error ? (
+              <div className="inline-error" role="alert">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    const last = messages.at(-1);
+                    if (last?.role === "user") void submitMessage(last.text, false);
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+
+            <div className="composer-row">
+              <label className="sr-only" htmlFor="companion-message">
+                Message Hesychia
+              </label>
               <textarea
+                id="companion-message"
                 className="textarea-surface"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Type your reflection..."
-                style={{ minHeight: 118 }}
+                onKeyDown={onComposerKeyDown}
+                placeholder="What is on your mind?"
+                maxLength={2000}
               />
-              <button className="primary-button" type="button" onClick={() => submitMessage(input)} disabled={loading}>
-                Send
+              <button className="primary-button" type="submit" disabled={loading || !input.trim()}>
+                {loading ? "Sending…" : "Send"}
               </button>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "center", gap: 24, color: "var(--text-tertiary)" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <MicIcon size={16} /> Voice input
-              </span>
-              <span>Attach mood log</span>
+            <div className="composer-meta">
+              <Link href="/voice" className="voice-link">
+                <MicIcon size={16} /> Switch to live voice
+              </Link>
+              <span>Enter to send · Shift+Enter for a new line</span>
             </div>
-          </div>
+          </form>
         </section>
 
-        <aside style={{ padding: 28, background: "rgba(32,31,31,0.6)", borderLeft: "1px solid var(--border-muted)", display: "grid", gap: 22, alignContent: "start" }}>
+        <aside className="companion-insights">
           <div>
-            <div className="eyebrow" style={{ color: "var(--text-secondary)", marginBottom: 14 }}>
-              Recent mood trend
-            </div>
-            <div className="surface-card" style={{ padding: 22 }}>
-              <div style={{ fontSize: 22, marginBottom: 10 }}>
-                <span style={{ color: "var(--accent-warning)", fontSize: 42, fontFamily: "var(--font-heading)" }}>Low</span> Stability
-              </div>
-              <p style={{ margin: "0 0 18px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                Your stress level has increased by <span style={{ color: "var(--accent-warning)" }}>24%</span> since yesterday morning.
-              </p>
-              <div style={{ display: "flex", gap: 8, alignItems: "end", height: 74 }}>
-                {[42, 56, 28, 66, 82].map((value, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      flex: 1,
-                      height: `${value}%`,
-                      borderRadius: 6,
-                      background: index === 4 ? "rgba(239,193,62,0.42)" : "rgba(255,255,255,0.08)"
-                    }}
-                  />
-                ))}
+            <div className="eyebrow section-label">Latest check-in</div>
+            <div className="surface-card insight-summary">
+              <div className="latest-mood">{recentMood}</div>
+              <p>{trendDescription}</p>
+              <div className="mood-bars" aria-label="Recent journal mood scores">
+                {journalEntries
+                  .slice(0, 5)
+                  .reverse()
+                  .map((entry) => (
+                    <span
+                      key={entry.id}
+                      style={{ height: `${entry.analysis.moodScore * 10}%` }}
+                    />
+                  ))}
               </div>
             </div>
           </div>
 
           <div>
-            <div className="eyebrow" style={{ color: "var(--text-secondary)", marginBottom: 14 }}>
-              For you
-            </div>
-            <div style={{ display: "grid", gap: 16 }}>
+            <div className="eyebrow section-label">Useful now</div>
+            <div className="recommendation-list">
               {[
-                { title: "4-7-8 Breathing", meta: "2 mins • De-stress", icon: <SparkIcon size={20} color="var(--accent-primary-bright)" /> },
-                { title: "Body Scan", meta: "5 mins • Grounding", icon: <SafetyIcon size={20} color="var(--accent-warning)" /> },
-                { title: "Mind Dump", meta: "Quick journaling", icon: <CompanionIcon size={20} color="var(--accent-low)" /> }
+                {
+                  title: "4-7-8 Breathing",
+                  meta: "2 mins · De-stress",
+                  icon: <SparkIcon size={20} color="var(--accent-primary-bright)" />
+                },
+                {
+                  title: "Body Scan",
+                  meta: "5 mins · Grounding",
+                  icon: <SafetyIcon size={20} color="var(--accent-warning)" />
+                },
+                {
+                  title: "Mind Dump",
+                  meta: "Quick journaling",
+                  icon: <CompanionIcon size={20} color="var(--accent-low)" />
+                }
               ].map((item) => (
-                <div key={item.title} className="surface-card" style={{ padding: 22, display: "flex", gap: 16, alignItems: "center" }}>
-                  <div
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 18,
-                      display: "grid",
-                      placeItems: "center",
-                      background: "rgba(255,255,255,0.06)"
-                    }}
-                  >
-                    {item.icon}
-                  </div>
+                <div key={item.title} className="surface-card recommendation-card">
+                  <div className="recommendation-icon">{item.icon}</div>
                   <div>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{item.title}</div>
+                    <div className="recommendation-title">{item.title}</div>
                     <div className="small-muted">{item.meta}</div>
                   </div>
                 </div>
@@ -218,14 +288,15 @@ export default function CompanionPage() {
             </div>
           </div>
 
-          <div className="surface-card" style={{ padding: 24, background: "rgba(91,228,107,0.08)", borderColor: "rgba(91,228,107,0.18)" }}>
-            <h3 style={{ marginTop: 0, color: "var(--accent-primary-bright)" }}>Overwhelmed?</h3>
-            <p style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>
-              It&apos;s okay to step away. Start a shorter focus mode, then come back to the task with lower load.
+          <div className="surface-card voice-cta">
+            <h3>Prefer speaking?</h3>
+            <p>
+              Move into a low-latency Gemini Live session with spoken responses and live
+              transcription.
             </p>
-            <button className="primary-button" type="button" style={{ width: "100%" }}>
-              Start focus mode
-            </button>
+            <Link href="/voice" className="primary-button">
+              <MicIcon size={18} /> Start voice session
+            </Link>
           </div>
         </aside>
       </div>

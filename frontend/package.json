@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc --noEmit -p tsconfig.json"
+    "test": "tsx --test tests/audio.test.ts tests/transcript.test.ts tests/trends.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.17.0",
@@ -19,6 +19,7 @@
     "@types/node": "^22.10.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }

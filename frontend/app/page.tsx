@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AppChrome } from "@/components/AppChrome";
-import { ArrowRightIcon, CompanionIcon, ExerciseIcon, JournalIcon, PlayIcon, TimerIcon } from "@/components/icons";
+import { ArrowRightIcon, CompanionIcon, ExerciseIcon, JournalIcon, MicIcon, PlayIcon, TimerIcon } from "@/components/icons";
 
 function FeatureCard({
   title,
@@ -133,11 +133,16 @@ export default function HomePage() {
           <div style={{ padding: 18 }}>
             <h3 style={{ fontSize: 32, margin: "0 0 8px" }}>Real-time Companion</h3>
             <p style={{ color: "var(--text-secondary)", lineHeight: 1.7, margin: "0 0 16px" }}>
-              An empathetic AI layer that sits alongside your study tools. Use text first, with voice-ready architecture for later.
+              An empathetic AI layer that sits alongside your study tools. Move naturally between contextual text chat and low-latency live voice.
             </p>
-            <Link href="/companion" className="pill" style={{ width: "fit-content", color: "var(--accent-primary-bright)" }}>
-              Instant support <ArrowRightIcon size={16} />
-            </Link>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Link href="/companion" className="pill" style={{ width: "fit-content", color: "var(--accent-primary-bright)" }}>
+                Text companion <ArrowRightIcon size={16} />
+              </Link>
+              <Link href="/voice" className="pill" style={{ width: "fit-content", color: "var(--accent-warning)" }}>
+                Live voice <MicIcon size={16} />
+              </Link>
+            </div>
           </div>
           <div
             style={{
@@ -176,12 +181,12 @@ export default function HomePage() {
                 Deep work session
               </div>
               <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 30 }}>
-                <button className="icon-button" type="button" style={{ width: 56, height: 56, background: "var(--accent-warning)", color: "#191510", border: "none" }}>
+                <Link href="/exercises" className="icon-button" aria-label="Open focus exercise" style={{ width: 56, height: 56, background: "var(--accent-warning)", color: "#191510", border: "none" }}>
                   <PlayIcon size={18} />
-                </button>
-                <button className="icon-button" type="button" style={{ width: 56, height: 56 }}>
+                </Link>
+                <Link href="/exercises" className="icon-button" aria-label="Open exercise timer" style={{ width: 56, height: 56 }}>
                   <TimerIcon size={18} />
-                </button>
+                </Link>
               </div>
             </div>
           </div>

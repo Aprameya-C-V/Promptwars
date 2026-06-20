@@ -1,223 +1,255 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AppChrome } from "@/components/AppChrome";
 import { MicIcon } from "@/components/icons";
 import { VoiceVisualizer } from "@/components/VoiceVisualizer";
-import { startVoiceSession, type VoiceSessionMessage, type VoiceSessionState } from "@/lib/live/session";
-
-type SessionHandle = Awaited<ReturnType<typeof startVoiceSession>>;
-
-const insightCards = [
-  ["Exam Anxiety", "Focusing on stress reduction techniques for finals week."],
-  ["Energy Shift", "Noticed a drop in cortisol patterns over the last 10 minutes."],
-  ["Previous Summary", "Resolved lack of focus via deep breathing exercises."]
-];
+import {
+  startVoiceSession,
+  type LiveSessionHandle,
+  type VoiceSessionMessage,
+  type VoiceSessionState
+} from "@/lib/live/session";
+import { mergeTranscriptMessage } from "@/lib/live/transcript";
+import { hasImmediateRiskLanguage } from "@/lib/safety";
+import { storage } from "@/lib/storage";
+import type { JournalEntry } from "@/lib/types";
 
 export default function VoicePage() {
-  const sessionRef = useRef<SessionHandle | null>(null);
+  const sessionRef = useRef<LiveSessionHandle | null>(null);
   const [state, setState] = useState<VoiceSessionState>("idle");
-  const [status, setStatus] = useState("Voice mode is ready.");
+  const [status, setStatus] = useState("Start when you are ready. Your browser will ask for microphone access.");
   const [messages, setMessages] = useState<VoiceSessionMessage[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [muted, setMuted] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [crisisDetected, setCrisisDetected] = useState(false);
+
+  useEffect(() => {
+    setJournalEntries(storage.loadJournalEntries());
+    return () => {
+      void sessionRef.current?.stop();
+      sessionRef.current = null;
+    };
+  }, []);
 
   const listeningLabel = useMemo(() => {
-    if (state === "connecting") return "Connecting...";
-    if (state === "connected" && muted) return "Muted";
-    if (state === "connected") return "Listening...";
-    if (state === "error") return "Connection issue";
-    return "Voice ready";
+    if (state === "connecting") return "Connecting securely";
+    if (state === "connected" && muted) return "Microphone muted";
+    if (state === "connected") return "Live voice active";
+    if (state === "error") return "Connection needs attention";
+    return "Gemini Live companion";
   }, [state, muted]);
 
   async function beginSession() {
     if (sessionRef.current || state === "connecting") return;
+    setMessages([]);
+    setCrisisDetected(false);
 
     try {
-      const session = await startVoiceSession({
+      const handle = await startVoiceSession({
         onStateChange: setState,
         onStatus: setStatus,
+        recentEntries: journalEntries.slice(0, 3),
         onMessage: (message) => {
-          setMessages((current) => {
-            const last = current[current.length - 1];
-            if (last && last.role === message.role && last.text === message.text) {
-              return current;
+          setMessages((current) => mergeTranscriptMessage(current, message));
+          if (
+            message.role === "user" &&
+            message.final &&
+            hasImmediateRiskLanguage(message.text)
+          ) {
+            setCrisisDetected(true);
+            setStatus("Voice coaching paused. Please contact immediate human support now.");
+            const activeSession = sessionRef.current;
+            sessionRef.current = null;
+            if (activeSession) {
+              void activeSession.stop().finally(() => {
+                setStatus("Voice coaching paused. Please contact immediate human support now.");
+              });
             }
-            return [...current.slice(-19), message];
-          });
+          }
+        },
+        onEnded: () => {
+          sessionRef.current = null;
+          setMuted(false);
         }
       });
 
-      sessionRef.current = session;
-      setMuted(session.isMuted());
-    } catch (error) {
-      setState("error");
-      setStatus(error instanceof Error ? error.message : "Unable to start voice session.");
+      sessionRef.current = handle;
+      setMuted(handle.isMuted());
+    } catch {
+      sessionRef.current = null;
     }
   }
 
   async function endSession() {
-    if (!sessionRef.current) return;
-    await sessionRef.current.stop();
+    const current = sessionRef.current;
     sessionRef.current = null;
+    if (current) await current.stop();
     setMuted(false);
   }
 
-  async function toggleMute() {
+  function toggleMute() {
     if (!sessionRef.current) return;
-    const nextMuted = await sessionRef.current.toggleMute();
-    setMuted(nextMuted);
+    setMuted(sessionRef.current.toggleMute());
   }
 
-  function sendText() {
-    if (!sessionRef.current || !textInput.trim()) return;
-    sessionRef.current.sendText(textInput.trim());
-    setMessages((current) => [
-      ...current.slice(-19),
-      {
+  function sendText(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = textInput.trim();
+    if (!sessionRef.current || !text) return;
+    sessionRef.current.sendText(text);
+    setMessages((current) =>
+      mergeTranscriptMessage(current, {
         role: "user",
-        text: textInput.trim(),
-        timestamp: new Date().toISOString()
-      }
-    ]);
+        text,
+        timestamp: new Date().toISOString(),
+        final: true
+      })
+    );
     setTextInput("");
   }
 
+  const recentContext = journalEntries.slice(0, 3);
+
   return (
-    <AppChrome showSidebar={false}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0,1fr) 340px",
-          border: "1px solid var(--border-muted)",
-          borderRadius: 28,
-          overflow: "hidden",
-          minHeight: "calc(100vh - 170px)"
-        }}
-      >
-        <section
-          style={{
-            padding: 30,
-            display: "grid",
-            alignContent: "center",
-            justifyItems: "center",
-            gap: 18
-          }}
-        >
-          <div className="eyebrow" style={{ color: "var(--accent-primary-bright)" }}>
-            {listeningLabel}
-          </div>
-          <h1 style={{ fontSize: 42, margin: 0 }}>Speak whenever you&apos;re ready</h1>
-          <p style={{ color: "var(--text-secondary)", margin: 0, maxWidth: 560, textAlign: "center" }}>
+    <AppChrome>
+      <div className="voice-layout">
+        <section className="voice-stage" aria-labelledby="voice-title">
+          <div className="eyebrow voice-state">{listeningLabel}</div>
+          <h1 id="voice-title">A conversation that meets you where you are.</h1>
+          <p className="voice-status" role="status" aria-live="polite">
             {status}
           </p>
-          <VoiceVisualizer />
 
-          {messages.length ? (
-            <div
-              className="surface-card"
-              style={{
-                width: "100%",
-                maxWidth: 720,
-                padding: 20,
-                display: "grid",
-                gap: 12,
-                maxHeight: 260,
-                overflow: "auto"
-              }}
-            >
-              {messages.slice(-8).map((message, index) => (
-                <div key={`${message.timestamp}-${index}`}>
-                  <div className="eyebrow" style={{ color: message.role === "assistant" ? "var(--accent-primary-bright)" : "var(--text-tertiary)", marginBottom: 6 }}>
-                    {message.role}
-                  </div>
-                  <div style={{ color: "var(--text-secondary)", lineHeight: 1.65 }}>{message.text}</div>
-                </div>
-              ))}
+          {crisisDetected ? (
+            <div className="voice-crisis-alert" role="alert">
+              <strong>Immediate human support matters more than continuing this session.</strong>
+              <p>
+                Contact local emergency services, a crisis line in your country, or a trusted
+                person who can stay with you now.
+              </p>
             </div>
           ) : null}
+
+          <VoiceVisualizer state={state} muted={muted} />
+
+          <div className="voice-controls" aria-label="Voice session controls">
+            {state === "idle" || state === "error" ? (
+              <button
+                className="voice-primary-control"
+                type="button"
+                onClick={() => void beginSession()}
+                aria-label="Start voice session"
+              >
+                <MicIcon size={30} />
+                <span>Start</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  className={`voice-primary-control ${muted ? "muted" : ""}`}
+                  type="button"
+                  onClick={toggleMute}
+                  disabled={state === "connecting"}
+                  aria-pressed={muted}
+                >
+                  <MicIcon size={30} />
+                  <span>{muted ? "Unmute" : "Mute"}</span>
+                </button>
+                <button className="dark-button end-voice-button" type="button" onClick={() => void endSession()}>
+                  End session
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="voice-privacy-note">
+            Audio streams directly to Gemini Live for this session. Your long-lived Gemini API key
+            never enters the browser.
+          </div>
+
+          <div className="transcript-panel" aria-live="polite">
+            <div className="transcript-header">
+              <h2>Live transcript</h2>
+              <span>{messages.length ? `${messages.length} turns` : "Waiting for conversation"}</span>
+            </div>
+            <div className="transcript-scroll">
+              {messages.length ? (
+                messages.map((message, index) => (
+                  <div className={`transcript-line ${message.role}`} key={`${message.timestamp}-${index}`}>
+                    <span>{message.role === "assistant" ? "Hesychia" : "You"}</span>
+                    <p>{message.text}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="transcript-empty">
+                  Your words and Hesychia&apos;s responses will appear here once the session begins.
+                </p>
+              )}
+            </div>
+
+            <form className="voice-text-form" onSubmit={sendText}>
+              <label className="sr-only" htmlFor="voice-text-input">
+                Type a message during the voice session
+              </label>
+              <input
+                id="voice-text-input"
+                className="input-surface"
+                value={textInput}
+                onChange={(event) => setTextInput(event.target.value)}
+                placeholder="Type if speaking is difficult right now"
+                disabled={state !== "connected"}
+              />
+              <button
+                className="dark-button"
+                type="submit"
+                disabled={state !== "connected" || !textInput.trim()}
+              >
+                Send
+              </button>
+            </form>
+          </div>
         </section>
 
-        <aside
-          style={{
-            borderLeft: "1px solid var(--border-muted)",
-            padding: 28,
-            display: "grid",
-            gap: 18,
-            background: "rgba(29,28,28,0.78)"
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: 30 }}>Recent insights</h2>
-          {insightCards.map(([title, body]) => (
-            <div key={title} className="surface-card" style={{ padding: 24 }}>
-              <h3 style={{ margin: "0 0 10px", fontSize: 24 }}>{title}</h3>
-              <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: 1.7 }}>{body}</p>
-            </div>
-          ))}
+        <aside className="voice-context">
+          <div>
+            <div className="eyebrow section-label">Context carried in</div>
+            <h2>Your recent signals</h2>
+            <p>
+              Voice support stays grounded in the themes you have already surfaced through
+              journaling.
+            </p>
+          </div>
 
-          <Link href="/companion" className="dark-button" style={{ width: "100%", marginTop: "auto" }}>
-            Session history
+          <div className="voice-context-list">
+            {recentContext.length ? (
+              recentContext.map((entry) => (
+                <div className="surface-card voice-context-card" key={entry.id}>
+                  <div>
+                    <span>{entry.analysis.primaryEmotion}</span>
+                    <strong>{entry.analysis.moodScore.toFixed(1)}/10</strong>
+                  </div>
+                  <p>{entry.analysis.supportiveSummary}</p>
+                </div>
+              ))
+            ) : (
+              <div className="surface-card voice-context-card">
+                <p>No journal context yet. Voice mode still works as a private standalone check-in.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="voice-safety-card">
+            <strong>Hesychia supports reflection, not emergency care.</strong>
+            <p>If you may hurt yourself or someone else, contact local emergency services or a trusted person now.</p>
+          </div>
+
+          <Link href="/companion" className="dark-button">
+            Continue in text chat
           </Link>
         </aside>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 20,
-          marginTop: 18,
-          flexWrap: "wrap"
-        }}
-      >
-        <div className="small-muted">
-          {state === "connected" ? "Live processing active" : "Session inactive"}
-        </div>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <textarea
-            className="textarea-surface"
-            value={textInput}
-            onChange={(event) => setTextInput(event.target.value)}
-            placeholder="Type instead"
-            style={{ minHeight: 64, width: 260 }}
-          />
-          <button className="dark-button" type="button" onClick={sendText} disabled={!sessionRef.current}>
-            Send text
-          </button>
-
-          {state === "idle" || state === "error" ? (
-            <button
-              className="primary-button"
-              type="button"
-              onClick={beginSession}
-              style={{ width: 92, height: 92, borderRadius: "999px", padding: 0 }}
-            >
-              <MicIcon size={28} />
-            </button>
-          ) : (
-            <button
-              className={muted ? "dark-button" : "primary-button"}
-              type="button"
-              onClick={toggleMute}
-              style={{ width: 92, height: 92, borderRadius: "999px", padding: 0 }}
-            >
-              <MicIcon size={28} />
-            </button>
-          )}
-
-          <button
-            className="dark-button"
-            type="button"
-            onClick={endSession}
-            disabled={!sessionRef.current}
-            style={{ color: "var(--accent-danger)" }}
-          >
-            End session
-          </button>
-        </div>
       </div>
     </AppChrome>
   );

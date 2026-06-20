@@ -1,133 +1,175 @@
-import { AppChrome } from "@/components/AppChrome";
-import { SparkIcon, WarningIcon } from "@/components/icons";
+"use client";
 
-const barValues = [38, 44, 35, 56, 63, 59, 72, 78, 69, 85, 92, 81, 66, 50];
-const triggers = [
-  { label: "Digital Noise", events: 14, width: "86%" },
-  { label: "Sleep Latency", events: 8, width: "54%" },
-  { label: "Context Switching", events: 6, width: "39%" },
-  { label: "Environment Temp", events: 3, width: "16%" }
-];
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { AppChrome } from "@/components/AppChrome";
+import { JournalIcon, SparkIcon, WarningIcon } from "@/components/icons";
+import { storage } from "@/lib/storage";
+import { summarizeTrends } from "@/lib/trends";
+import type { JournalEntry } from "@/lib/types";
 
 export default function TrendsPage() {
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [days, setDays] = useState<7 | 30>(30);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setEntries(storage.loadJournalEntries());
+    setLoaded(true);
+  }, []);
+
+  const summary = useMemo(() => summarizeTrends(entries, days), [days, entries]);
+  const chartMaximum = Math.max(
+    10,
+    ...summary.entries.map((entry) => entry.analysis.moodScore)
+  );
+
   return (
     <AppChrome>
-      <div style={{ display: "grid", gap: 26 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 24, flexWrap: "wrap", alignItems: "end" }}>
+      <div className="trends-page">
+        <header className="trends-header">
           <div>
-            <h1 style={{ fontSize: 72, margin: "0 0 12px", color: "var(--accent-primary-bright)" }}>Trends</h1>
-            <p style={{ color: "var(--text-secondary)", fontSize: 22, maxWidth: 780, lineHeight: 1.6 }}>
-              Uncover the underlying architecture of your academic focus and mental clarity over the past 30 days.
+            <div className="eyebrow" style={{ color: "var(--accent-primary-bright)" }}>
+              Your actual check-ins
+            </div>
+            <h1>Patterns, not guesses.</h1>
+            <p>
+              Hesychia turns your journal history into a transparent view of mood shifts,
+              recurring stress triggers, and patterns worth noticing.
             </p>
           </div>
-          <div style={{ display: "flex", gap: 14 }}>
-            <button className="dark-button" type="button">Last 7 days</button>
-            <button className="ghost-button" type="button">Last 30 days</button>
+          <div className="trend-range" aria-label="Trend range">
+            <button
+              className={days === 7 ? "ghost-button active" : "dark-button"}
+              type="button"
+              onClick={() => setDays(7)}
+              aria-pressed={days === 7}
+            >
+              7 days
+            </button>
+            <button
+              className={days === 30 ? "ghost-button active" : "dark-button"}
+              type="button"
+              onClick={() => setDays(30)}
+              aria-pressed={days === 30}
+            >
+              30 days
+            </button>
           </div>
-        </div>
+        </header>
 
-        <section className="surface-card" style={{ padding: 30 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start", flexWrap: "wrap" }}>
-            <div>
-              <h2 style={{ margin: "0 0 10px", fontSize: 36 }}>Focus &amp; Clarity Velocity</h2>
-              <p style={{ color: "var(--text-secondary)", margin: 0 }}>Aggregated emotional telemetry and cognitive focus metrics.</p>
-            </div>
-            <div style={{ display: "flex", gap: 18, color: "var(--text-secondary)" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 999, background: "var(--accent-primary-bright)" }} /> Clarity
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 999, background: "var(--accent-warning)" }} /> Stability
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 28, alignItems: "end", height: 280, marginTop: 30, padding: "0 10px" }}>
-            {barValues.map((value, index) => (
-              <div key={index} style={{ display: "grid", gap: 10, justifyItems: "center", flex: 1 }}>
-                <div
-                  style={{
-                    width: "100%",
-                    maxWidth: 26,
-                    height: `${value * 2}px`,
-                    borderRadius: 8,
-                    background: "linear-gradient(180deg, var(--accent-primary-bright), rgba(91,228,107,0.18))"
-                  }}
-                />
-                {index % 3 === 0 ? <span className="small-muted">W{Math.floor(index / 3) + 1}</span> : <span className="small-muted" />}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="two-grid">
-          <section className="surface-card" style={{ padding: 28 }}>
-            <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 24 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(239,193,62,0.14)", display: "grid", placeItems: "center", color: "var(--accent-warning)" }}>
-                <WarningIcon size={24} />
-              </div>
-              <h2 style={{ margin: 0, fontSize: 28 }}>Focus Triggers</h2>
-            </div>
-
-            <div style={{ display: "grid", gap: 28 }}>
-              {triggers.map((trigger) => (
-                <div key={trigger.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                    <strong>{trigger.label}</strong>
-                    <span style={{ color: "var(--accent-warning)", fontWeight: 700 }}>{trigger.events} Events</span>
-                  </div>
-                  <div className="progress-bar">
-                    <span style={{ width: trigger.width, background: "var(--accent-warning)" }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+        {loaded && !summary.entries.length ? (
+          <section className="surface-card trends-empty">
+            <JournalIcon size={34} />
+            <h2>Your trend line begins with an honest check-in.</h2>
+            <p>
+              Add at least one journal entry. Hesychia will show only patterns grounded in what
+              you actually recorded.
+            </p>
+            <Link href="/journal" className="primary-button">
+              Start a journal check-in
+            </Link>
           </section>
-
-          <section className="surface-card" style={{ padding: 28 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", marginBottom: 24 }}>
-              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(91,228,107,0.12)", display: "grid", placeItems: "center", color: "var(--accent-primary-bright)" }}>
-                  <SparkIcon size={24} />
-                </div>
-                <h2 style={{ margin: 0, fontSize: 28 }}>Hidden Patterns</h2>
+        ) : (
+          <>
+            <section className="trend-metrics" aria-label="Trend summary">
+              <div className="thin-card">
+                <span>Average mood</span>
+                <strong>{summary.averageMood?.toFixed(1) ?? "—"}</strong>
+                <small>out of 10</small>
               </div>
-              <span className="pill" style={{ color: "var(--accent-primary-bright)" }}>AI insights active</span>
-            </div>
+              <div className="thin-card">
+                <span>Average energy</span>
+                <strong>{summary.averageEnergy?.toFixed(1) ?? "—"}</strong>
+                <small>normalized score</small>
+              </div>
+              <div className="thin-card">
+                <span>Mood direction</span>
+                <strong>
+                  {summary.moodChange === null
+                    ? "—"
+                    : `${summary.moodChange >= 0 ? "+" : ""}${summary.moodChange.toFixed(1)}`}
+                </strong>
+                <small>first to latest entry</small>
+              </div>
+            </section>
+
+            <section className="surface-card trend-chart-card">
+              <div>
+                <h2>Mood check-in history</h2>
+                <p>{summary.entries.length} entries in the selected period.</p>
+              </div>
+              <div className="trend-chart" role="img" aria-label="Mood scores over time">
+                {summary.entries.map((entry) => (
+                  <div className="trend-bar-item" key={entry.id}>
+                    <span
+                      className="trend-bar"
+                      style={{
+                        height: `${Math.max(8, (entry.analysis.moodScore / chartMaximum) * 100)}%`
+                      }}
+                      title={`${entry.analysis.moodScore}/10 on ${new Date(entry.createdAt).toLocaleDateString("en")}`}
+                    />
+                    <time dateTime={entry.createdAt}>
+                      {new Date(entry.createdAt).toLocaleDateString("en", {
+                        month: "short",
+                        day: "numeric"
+                      })}
+                    </time>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             <div className="two-grid">
-              {[
-                ["The Golden Hour", "Your journaling clarity is strongest when conducted within 15 minutes of waking."],
-                ["Circadian Drift", "Wednesday dips in stability correlate with late-night Tuesday study sprints."],
-                ["Exercise Synergy", "Light movement before study sessions appears to reduce overload and recovery lag."],
-                ["Companion Frequency", "Companion check-ins on Sundays improve Monday stability and outlook."]
-              ].map(([title, body]) => (
-                <div key={title} className="thin-card" style={{ padding: 22 }}>
-                  <h3 style={{ fontSize: 24, margin: "0 0 12px" }}>{title}</h3>
-                  <p style={{ color: "var(--text-secondary)", margin: 0, lineHeight: 1.7 }}>{body}</p>
+              <section className="surface-card trend-detail-card">
+                <div className="trend-section-title">
+                  <WarningIcon size={22} />
+                  <h2>Recurring stress triggers</h2>
                 </div>
-              ))}
-            </div>
+                {summary.triggerSummaries.length ? (
+                  <div className="trigger-list">
+                    {summary.triggerSummaries.map((trigger) => (
+                      <div key={trigger.label}>
+                        <div>
+                          <strong>{trigger.label}</strong>
+                          <span>{trigger.events} {trigger.events === 1 ? "entry" : "entries"}</span>
+                        </div>
+                        <div className="progress-bar">
+                          <span
+                            style={{
+                              width: `${trigger.percentage}%`,
+                              background: "var(--accent-warning)"
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="small-muted">No recurring triggers have been recorded yet.</p>
+                )}
+              </section>
 
-            <button className="dark-button" type="button" style={{ width: "100%", marginTop: 24 }}>
-              View full subconscious report
-            </button>
-          </section>
-        </div>
-
-        <div className="three-grid">
-          {[
-            { label: "Stability index", value: "8.4", sub: "+12% from last week", color: "var(--accent-primary-bright)" },
-            { label: "Deep work hrs", value: "42.5", sub: "Near all-time high", color: "var(--accent-warning)" },
-            { label: "Mental resilience", value: "Elite", sub: "Optimized state", color: "var(--text-primary)" }
-          ].map((card) => (
-            <div key={card.label} className="thin-card" style={{ padding: 30, textAlign: "center" }}>
-              <div className="eyebrow" style={{ color: "var(--text-tertiary)", marginBottom: 12 }}>{card.label}</div>
-              <div style={{ fontSize: 64, fontFamily: "var(--font-heading)", color: card.color }}>{card.value}</div>
-              <div style={{ color: card.color === "var(--text-primary)" ? "var(--accent-primary-bright)" : "var(--text-secondary)", marginTop: 10 }}>{card.sub}</div>
+              <section className="surface-card trend-detail-card">
+                <div className="trend-section-title green">
+                  <SparkIcon size={22} />
+                  <h2>Journal patterns</h2>
+                </div>
+                {summary.hiddenPatterns.length ? (
+                  <div className="pattern-list">
+                    {summary.hiddenPatterns.map((pattern) => (
+                      <blockquote key={pattern}>{pattern}</blockquote>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="small-muted">
+                    More entries are needed before a supported pattern can be surfaced.
+                  </p>
+                )}
+              </section>
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
     </AppChrome>
   );

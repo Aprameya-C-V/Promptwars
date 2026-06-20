@@ -1,7 +1,9 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { z } from "zod";
+import { env } from "../config/env.js";
 import { GEMINI_LIVE_MODEL } from "../config/models.js";
 import { buildLiveSystemInstruction } from "../prompts/live.js";
+import type { JournalEntry } from "../types/contracts.js";
 
 type GenerateStructuredOptions<TSchema extends z.ZodTypeAny> = {
   model: string;
@@ -64,6 +66,9 @@ export class GeminiService {
       model,
       contents: prompt,
       config: {
+        httpOptions: {
+          timeout: 30000
+        },
         responseMimeType: "application/json",
         responseJsonSchema: toJsonSchema(schema)
       }
@@ -78,7 +83,7 @@ export class GeminiService {
     return schema.parse(parsed);
   }
 
-  async createLiveEphemeralToken() {
+  async createLiveEphemeralToken(recentEntries: JournalEntry[] = []) {
     if (!this.liveTokenClient) {
       throw new Error("GEMINI_API_KEY is not configured");
     }
@@ -86,11 +91,12 @@ export class GeminiService {
     const token = await this.liveTokenClient.authTokens.create({
       config: {
         uses: 1,
+        newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(),
         liveConnectConstraints: {
           model: GEMINI_LIVE_MODEL,
           config: {
             responseModalities: [Modality.AUDIO],
-            systemInstruction: buildLiveSystemInstruction(),
+            systemInstruction: buildLiveSystemInstruction(recentEntries),
             inputAudioTranscription: {},
             outputAudioTranscription: {}
           }
@@ -114,4 +120,4 @@ export class GeminiService {
   }
 }
 
-export const geminiService = new GeminiService(process.env.GEMINI_API_KEY);
+export const geminiService = new GeminiService(env.GEMINI_API_KEY);

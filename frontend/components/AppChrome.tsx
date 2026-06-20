@@ -7,16 +7,16 @@ import {
   ExerciseIcon,
   HomeIcon,
   JournalIcon,
+  MicIcon,
   SafetyIcon,
-  SettingsIcon,
-  TrendsIcon,
-  UserIcon
+  TrendsIcon
 } from "./icons";
 
 const sidebarLinks = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/journal", label: "Journal", icon: JournalIcon },
   { href: "/companion", label: "Companion", icon: CompanionIcon },
+  { href: "/voice", label: "Voice", icon: MicIcon },
   { href: "/exercises", label: "Exercises", icon: ExerciseIcon },
   { href: "/trends", label: "Trends", icon: TrendsIcon }
 ];
@@ -24,6 +24,7 @@ const sidebarLinks = [
 const topLinks = [
   { href: "/journal", label: "Journal" },
   { href: "/companion", label: "Companion" },
+  { href: "/voice", label: "Voice" },
   { href: "/exercises", label: "Exercises" },
   { href: "/trends", label: "Trends" }
 ];
@@ -50,7 +51,7 @@ export function AppChrome({
             <span>Digital Sanctuary</span>
           </div>
 
-          <nav className="nav-list">
+          <nav className="nav-list" aria-label="Sidebar">
             {sidebarLinks.map((link) => {
               const Icon = link.icon;
               return (
@@ -67,23 +68,19 @@ export function AppChrome({
           </nav>
 
           <div style={{ marginTop: "auto", display: "grid", gap: 10 }}>
-            <div className="nav-link">
-              <SettingsIcon size={20} />
-              <span>Settings</span>
-            </div>
-            <div className="nav-link">
+            <Link className="nav-link" href="/companion">
               <SafetyIcon size={20} />
-              <span>Safety</span>
-            </div>
-            <button className="primary-button" type="button" style={{ width: "100%" }}>
+              <span>Support</span>
+            </Link>
+            <Link className="primary-button" href="/companion" style={{ width: "100%" }}>
               Need Help?
-            </button>
+            </Link>
           </div>
         </aside>
       ) : null}
 
       <div className={showSidebar ? "dashboard-main" : undefined}>
-        <header className="top-tabs">
+        <header className={`top-tabs ${showSidebar ? "dashboard-top-tabs" : "landing-top-tabs"}`}>
           <div style={{ color: "var(--accent-primary-bright)", fontWeight: 700, minWidth: 120 }}>
             Hesychia
           </div>
@@ -98,19 +95,31 @@ export function AppChrome({
               </Link>
             ))}
           </nav>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="icon-button" type="button" aria-label="Settings">
-              <SettingsIcon size={18} />
-            </button>
-            <button className="icon-button" type="button" aria-label="Account">
-              <UserIcon size={18} />
-            </button>
-          </div>
+          <Link href="/voice" className="icon-button" aria-label="Open live voice">
+            <MicIcon size={18} />
+          </Link>
         </header>
 
         <div className={showSidebar ? "dashboard-content" : "page-shell"}>{children}</div>
       </div>
+
+      <nav className="mobile-nav" aria-label="Mobile navigation">
+        {sidebarLinks.map((link) => {
+          const Icon = link.icon;
+          const active = isActive(pathname, link.href);
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`mobile-nav-link ${active ? "active" : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon size={18} />
+              <span>{link.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
-

@@ -1,4 +1,8 @@
+import dotenv from "dotenv";
 import { z } from "zod";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
@@ -6,5 +10,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000)
 });
 
-export const env = envSchema.parse(process.env);
+const parsedEnv = envSchema.parse(process.env);
 
+export const env = {
+  ...parsedEnv,
+  ALLOWED_ORIGINS: parsedEnv.ALLOWED_ORIGIN.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+};

@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppChrome } from "@/components/AppChrome";
 import { MetricCard } from "@/components/MetricCard";
 import { InsightChip } from "@/components/InsightChip";
 import { JournalIcon, MicIcon, SparkIcon, TimerIcon } from "@/components/icons";
-import { analyzeJournal } from "@/lib/api";
+import { ApiError, analyzeJournal } from "@/lib/api";
 import { storage } from "@/lib/storage";
 import type { ExamType, JournalAnalysis, JournalEntry, SafetyStatus } from "@/lib/types";
 
@@ -25,8 +26,11 @@ const fallbackAnalysis: JournalAnalysis = {
 export default function JournalPage() {
   const [text, setText] = useState("I'm feeling overwhelmed by the mock test results today...");
   const [examType, setExamType] = useState<ExamType>("NEET");
+  const [quickMood, setQuickMood] = useState(5);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<JournalAnalysis>(fallbackAnalysis);
+  const [hasAnalysis, setHasAnalysis] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [safety, setSafety] = useState<{ status: SafetyStatus; message?: string }>({ status: "ok" });
 
   const progressMessage = useMemo(() => {
@@ -36,24 +40,32 @@ export default function JournalPage() {
   }, [safety]);
 
   async function onSubmit() {
+    if (text.trim().length < 10 || loading) return;
     setLoading(true);
+    setError(null);
     try {
-      const result = await analyzeJournal({ text, examType });
+      const result = await analyzeJournal({ text: text.trim(), examType, quickMood });
       setAnalysis(result.analysis);
+      setHasAnalysis(true);
       setSafety(result.safety);
 
       const nextEntry: JournalEntry = {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
         examType,
-        rawText: text,
+        rawText: text.trim(),
+        quickMood,
         analysis: result.analysis
       };
 
       const entries = [nextEntry, ...storage.loadJournalEntries()].slice(0, 30);
       storage.saveJournalEntries(entries);
-    } catch {
-      setAnalysis(fallbackAnalysis);
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "The journal analysis could not be completed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -106,17 +118,34 @@ export default function JournalPage() {
               placeholder="What is taking up too much space in your head right now?"
             />
 
+            <div className="mood-control">
+              <div>
+                <label htmlFor="quick-mood">How steady do you feel right now?</label>
+                <span>{quickMood}/10</span>
+              </div>
+              <input
+                id="quick-mood"
+                type="range"
+                min="1"
+                max="10"
+                value={quickMood}
+                onChange={(event) => setQuickMood(Number(event.target.value))}
+              />
+            </div>
+
+            {error ? <div className="inline-error" role="alert">{error}</div> : null}
+
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginTop: 18, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 10 }}>
-                <button className="icon-button" type="button" aria-label="Voice input">
+                <Link className="icon-button" href="/voice" aria-label="Open live voice mode">
                   <MicIcon size={18} />
-                </button>
+                </Link>
                 <button className="icon-button" type="button" aria-label="Attach prompt">
                   <JournalIcon size={18} />
                 </button>
               </div>
 
-              <button className="primary-button" type="button" onClick={onSubmit} disabled={loading}>
+              <button className="primary-button" type="button" onClick={onSubmit} disabled={loading || text.trim().length < 10}>
                 {loading ? "Analyzing..." : "Submit Entry"}
               </button>
             </div>
@@ -126,7 +155,7 @@ export default function JournalPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: 28 }}>AI Analysis Insights</h2>
               <span className="pill" style={{ background: "rgba(91,228,107,0.12)", color: "var(--accent-primary-bright)" }}>
-                Real-time
+                {hasAnalysis ? "Gemini analysis" : "Example preview"}
               </span>
             </div>
 

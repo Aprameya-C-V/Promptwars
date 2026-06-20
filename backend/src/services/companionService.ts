@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GEMINI_TEXT_MODEL } from "../config/models.js";
 import { buildCompanionPrompt } from "../prompts/companion.js";
+import type { CompanionMessage, JournalEntry } from "../types/contracts.js";
 import { geminiService } from "./gemini.js";
 
 const companionReplySchema = z.object({
@@ -9,8 +10,8 @@ const companionReplySchema = z.object({
 
 export async function generateCompanionReply(input: {
   message: string;
-  recentEntries: any[];
-  recentMessages: any[];
+  recentEntries: JournalEntry[];
+  recentMessages: CompanionMessage[];
 }) {
   return geminiService.generateStructured({
     model: GEMINI_TEXT_MODEL,

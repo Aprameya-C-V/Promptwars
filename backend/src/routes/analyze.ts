@@ -1,11 +1,12 @@
 import { Router } from "express";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 import { analyzeRequestSchema } from "../schemas/contracts.js";
 import { detectRisk } from "../safety/detectRisk.js";
 import { analyzeJournal } from "../services/analysisService.js";
 
 export const analyzeRouter = Router();
 
-analyzeRouter.post("/", async (req, res) => {
+analyzeRouter.post("/", asyncHandler(async (req, res) => {
   const input = analyzeRequestSchema.parse(req.body);
   const safety = detectRisk(input.text);
 
@@ -26,5 +27,4 @@ analyzeRouter.post("/", async (req, res) => {
 
   const analysis = await analyzeJournal(input);
   return res.json({ analysis, safety });
-});
-
+}));

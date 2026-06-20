@@ -79,7 +79,11 @@ export const exerciseResponseSchema = z.object({
   exercise: copingExerciseSchema
 });
 
+export const liveSessionRequestSchema = z.object({
+  recentEntries: z.array(journalEntrySchema).max(3).default([])
+});
+
 export type AnalyzeRequest = z.infer<typeof analyzeRequestSchema>;
 export type CompanionRequest = z.infer<typeof companionRequestSchema>;
 export type ExerciseRequest = z.infer<typeof exerciseRequestSchema>;
-
+export type LiveSessionRequest = z.infer<typeof liveSessionRequestSchema>;
