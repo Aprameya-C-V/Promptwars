@@ -154,6 +154,15 @@ export function PlayIcon(props: IconProps) {
   );
 }
 
+export function PauseIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9 6v12" />
+      <path d="M15 6v12" />
+    </Svg>
+  );
+}
+
 export function UserIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -162,4 +171,3 @@ export function UserIcon(props: IconProps) {
     </Svg>
   );
 }
-

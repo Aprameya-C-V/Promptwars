@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
-import { createApp } from "../src/app.js";
+import app, { createApp } from "../src/app.js";
+
+test("Vercel entry module has a default Express handler export", () => {
+  assert.equal(typeof app, "function");
+});
 
 async function withServer(
   run: (baseUrl: string) => Promise<void>

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test tests/audio.test.ts tests/transcript.test.ts tests/trends.test.ts"
+    "test": "tsx --test tests/apiUrl.test.ts tests/audio.test.ts tests/focusTimer.test.ts tests/transcript.test.ts tests/trends.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.17.0",

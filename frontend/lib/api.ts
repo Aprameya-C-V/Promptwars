@@ -1,6 +1,9 @@
 import type { CompanionMessage, CopingExercise, JournalAnalysis, JournalEntry, SafetyStatus } from "./types";
+import { buildApiUrl, normalizeApiBaseUrl } from "./apiUrl";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+const API_BASE_URL = normalizeApiBaseUrl(
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"
+);
 const REQUEST_TIMEOUT_MS = 30000;
 
 export class ApiError extends Error {
@@ -18,7 +21,7 @@ async function postJson<TResponse>(path: string, body: unknown): Promise<TRespon
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(buildApiUrl(API_BASE_URL, path), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

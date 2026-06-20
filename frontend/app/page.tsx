@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppChrome } from "@/components/AppChrome";
-import { ArrowRightIcon, CompanionIcon, ExerciseIcon, JournalIcon, MicIcon, PlayIcon, TimerIcon } from "@/components/icons";
+import { FocusTimer } from "@/components/FocusTimer";
+import { ArrowRightIcon, CompanionIcon, ExerciseIcon, JournalIcon, MicIcon } from "@/components/icons";
 
 function FeatureCard({
   title,
@@ -107,7 +108,7 @@ export default function HomePage() {
                 <span className="pill small-muted">Sentiment analysis</span>
               </div>
             }
-            action={<div style={{ fontSize: 36, color: "var(--accent-primary-bright)", fontFamily: "var(--font-heading)" }}>84%</div>}
+            action={<div className="eyebrow" style={{ color: "var(--accent-primary-bright)" }}>Local-first</div>}
           />
 
           <FeatureCard
@@ -119,10 +120,10 @@ export default function HomePage() {
               <div style={{ width: "100%" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span className="small-muted">Current goal</span>
-                  <span style={{ color: "var(--accent-warning)", fontWeight: 700 }}>In progress</span>
+                  <span style={{ color: "var(--accent-warning)", fontWeight: 700 }}>Adaptive</span>
                 </div>
                 <div className="progress-bar">
-                  <span style={{ width: "78%", background: "var(--accent-warning)" }} />
+                  <span style={{ width: "100%", background: "var(--accent-warning)" }} />
                 </div>
               </div>
             }
@@ -175,20 +176,7 @@ export default function HomePage() {
               position: "relative"
             }}
           >
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 74, lineHeight: 1, fontFamily: "var(--font-heading)" }}>25:00</div>
-              <div className="eyebrow" style={{ color: "var(--text-tertiary)", marginTop: 10 }}>
-                Deep work session
-              </div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 30 }}>
-                <Link href="/exercises" className="icon-button" aria-label="Open focus exercise" style={{ width: 56, height: 56, background: "var(--accent-warning)", color: "#191510", border: "none" }}>
-                  <PlayIcon size={18} />
-                </Link>
-                <Link href="/exercises" className="icon-button" aria-label="Open exercise timer" style={{ width: 56, height: 56 }}>
-                  <TimerIcon size={18} />
-                </Link>
-              </div>
-            </div>
+            <FocusTimer />
           </div>
         </div>
 

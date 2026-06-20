@@ -140,9 +140,6 @@ export default function JournalPage() {
                 <Link className="icon-button" href="/voice" aria-label="Open live voice mode">
                   <MicIcon size={18} />
                 </Link>
-                <button className="icon-button" type="button" aria-label="Attach prompt">
-                  <JournalIcon size={18} />
-                </button>
               </div>
 
               <button className="primary-button" type="button" onClick={onSubmit} disabled={loading || text.trim().length < 10}>

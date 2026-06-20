@@ -1087,6 +1087,41 @@ select:focus-visible {
   color: var(--text-tertiary);
 }
 
+.focus-timer {
+  text-align: center;
+}
+
+.focus-timer-value {
+  font-size: 74px;
+  line-height: 1;
+  font-family: var(--font-heading), Arial, Helvetica, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-timer-label {
+  margin-top: 10px;
+  color: var(--text-tertiary);
+}
+
+.focus-timer-controls {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.focus-timer-controls .icon-button {
+  width: 56px;
+  height: 56px;
+  cursor: pointer;
+}
+
+.focus-timer-primary {
+  border: 0;
+  background: var(--accent-warning);
+  color: #191510;
+}
+
 .trends-page {
   display: grid;
   gap: 26px;
